@@ -3,7 +3,9 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <opencv2/core/mat.hpp>
 #include <opencv2/core/matx.hpp>
+#include <opencv2/geometry/3d.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
@@ -77,6 +79,24 @@ inline void obj_points_from_pattern(const cv::Size &size,
   }
 }
 
+static float compute_reprojection_error(
+    const std::vector<std::vector<cv::Point3f>> &obj_points,
+    const std::vector<std::vector<cv::Point2f>> &img_points,
+    const std::vector<cv::Mat> &rvecs, const std::vector<cv::Mat> &tvecs,
+    const cv::Mat &mtx, const std::vector<double> &dist_coefs) {
+  float mean_error = 0;
+  std::vector<std::vector<cv::Point2f>> img_points_2 = img_points;
+  for (int i = 0; i < obj_points.size(); i++) {
+    cv::projectPoints(obj_points[i], rvecs[i], tvecs[i], mtx, dist_coefs,
+                      img_points_2[i]);
+    float error = cv::norm(img_points[i], img_points_2[i], cv::NORM_L2) /
+                  img_points_2.size();
+    mean_error += error;
+  }
+
+  return mean_error / obj_points.size();
+}
+
 inline bool calibrate_camera_from_chessboard_images(
     const std::vector<cv::Mat> &images, const cv::Size &pattern_size,
     cv::Mat &cam, std::vector<double> &dist_coefs,
@@ -121,6 +141,11 @@ inline bool calibrate_camera_from_chessboard_images(
 
   cv::calibrateCamera(obj_points, img_points, img_size, cam, dist_coefs,
                       rotation_vecs, trans_vecs);
+  if (debug) {
+    float mean_error = compute_reprojection_error(
+        obj_points, img_points, rotation_vecs, trans_vecs, cam, dist_coefs);
+    fprintf(stdout, "Mean reprojection error: %f\n", mean_error);
+  }
   return true;
 }
 

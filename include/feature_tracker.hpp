@@ -50,7 +50,6 @@ private:
       return false;
     }
 
-    clear_feature_data();
     detector->detectAndCompute(input_image, cv::noArray(), input_key_points,
                                input_descriptors);
     matcher->knnMatch(target_descriptors, input_descriptors, matches, K);
@@ -191,6 +190,7 @@ public:
   }
 
   void visualy_track(bool debug = false) {
+    clear_feature_data();
     find_good_matches();
     find_homography();
     if (debug) {
