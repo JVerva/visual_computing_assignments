@@ -32,8 +32,7 @@ int main() {
   TextureManager texture_manager = TextureManager();
 
   std::shared_ptr<Camera> camera = std::make_shared<Camera>();
-  camera->set_position(glm::vec3(0, 15, 0));
-  camera->set_rotation(glm::vec3(-3.14 / 2, 0.0, 0.0));
+  camera->set_position(glm::vec3(0, 0, 20));
 
   Renderer renderer = Renderer(camera);
   if (!renderer.setup()) {
@@ -57,46 +56,37 @@ int main() {
   create_default_texture(background_texture);
 
   DirectionalLight light;
-  light.direction = glm::normalize(glm::vec3(0, -1.0, 1.0));
+  light.direction = glm::normalize(glm::vec3(0, -1.0, -1.0));
   light.ambient = glm::vec3(0.2);
   light.diffuse = glm::vec3(0.5);
   light.specular = glm::vec3(1.0);
   renderer.set_scene_light(light);
-  // cube creation
-  // vertices
-  std::vector<Vertex> cube_vertices;
-  std::vector<uint> cube_indices;
-  get_cube_geometry(1, cube_vertices, cube_indices);
-  GLuint cube_diffuse;
-  texture_manager.load_texture_from_color(gruvbox::orange, cube_diffuse);
-  GLuint cube_specular;
-  texture_manager.load_texture_from_color(gruvbox::fg, cube_specular);
-  // material
-  Material cube_material;
-  cube_material.diffuse_texture = cube_diffuse;
-  cube_material.specular_texture = cube_specular;
-  cube_material.shininess = 32;
-  // model
-  Mesh cube_mesh = Mesh(cube_vertices, cube_indices, cube_material);
-  std::shared_ptr<Model> cube = std::make_shared<Model>();
 
-  cube->add_mesh(cube_mesh);
+  // model
+  std::string model_path =
+      std::string(PROJECT_DIR) +
+      "/assets/models/steampunk_underwater_explorer/scene.gltf";
+  std::shared_ptr<Model> model =
+      std::make_shared<Model>(model_path, texture_manager);
+
   // test transformations
   glm::vec3 translation = glm::vec3(0, 0, 0);
   glm::vec3 scaling = glm::vec3(1);
   glm::vec3 rotation = glm::vec3(0, 0, 0);
-  cube->move(translation);
-  cube->rotate(rotation);
-  cube->scale(scaling);
+  model->move(translation);
+  model->rotate(rotation);
+  model->scale(scaling);
   // add cube to scene
-  renderer.add_model_to_scene(cube);
+  renderer.add_model_to_scene(model);
 
   double delta_t;
   double last_frame_t = glfwGetTime();
   while (!window.should_close()) {
     delta_t = last_frame_t - glfwGetTime();
     webcam.update_frame();
-    write_image_to_texture(background_texture, webcam.frame);
+    cv::Mat background_image;
+    cv::flip(webcam.frame, background_image, 0);
+    write_image_to_texture(background_texture, background_image);
     renderer.set_back_ground_texture(background_texture);
 
     // input actions, to be removed later when engine architecture is defined

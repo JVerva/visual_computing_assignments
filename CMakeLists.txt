@@ -61,3 +61,20 @@ target_link_libraries(triangle_render PRIVATE
     glfw
     glad
 )
+
+
+add_executable(engine src/main.cpp src/cgltf.c)
+
+target_compile_definitions(engine PUBLIC PROJECT_DIR="${CMAKE_SOURCE_DIR}")
+
+target_include_directories(engine PRIVATE
+  ${OpenCV_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}/include
+  glad
+)
+
+target_link_libraries(engine PRIVATE
+    ${OpenCV_LIBS}
+    glfw
+    glad
+)
