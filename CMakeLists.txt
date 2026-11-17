@@ -63,7 +63,7 @@ target_link_libraries(triangle_render PRIVATE
 )
 
 
-add_executable(engine src/main.cpp src/cgltf.c)
+add_executable(engine src/main.cpp src/stb_image.c)
 
 target_compile_definitions(engine PUBLIC PROJECT_DIR="${CMAKE_SOURCE_DIR}")
 

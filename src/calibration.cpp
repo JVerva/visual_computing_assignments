@@ -70,15 +70,8 @@ int main() {
   std::vector<Vertex> cube_vertices;
   std::vector<uint> cube_indices;
   get_cube_geometry(1, cube_vertices, cube_indices);
-  GLuint cube_diffuse;
-  texture_manager.load_texture_from_color(gruvbox::orange, cube_diffuse);
-  GLuint cube_specular;
-  texture_manager.load_texture_from_color(gruvbox::fg, cube_specular);
   // material
-  Material cube_material;
-  cube_material.diffuse_texture = cube_diffuse;
-  cube_material.specular_texture = cube_specular;
-  cube_material.shininess = 32;
+  Material cube_material = Material::get_default_material(texture_manager);
   // model
   Mesh cube_mesh = Mesh(cube_vertices, cube_indices, cube_material);
   std::shared_ptr<Model> cube = std::make_shared<Model>();

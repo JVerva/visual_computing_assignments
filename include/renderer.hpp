@@ -1,16 +1,18 @@
 #ifndef RENDERER_HPP
 #define RENDERER_HPP
 
+#include "OBJ_Loader.h"
 #include "camera.hpp"
-#include "cgltf.h"
 #include "geometry.hpp"
 #include "shader.hpp"
 #include "texture_manager.hpp"
 #include "themes.hpp"
 #include <cstddef>
 #include <cstdio>
+#include <filesystem>
 #include <glad/glad.h>
 #include <glm/detail/qualifier.hpp>
+#include <glm/exponential.hpp>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -26,6 +28,20 @@ struct Material {
   GLuint diffuse_texture;
   GLuint specular_texture;
   float shininess;
+
+public:
+  static Material get_default_material(TextureManager texture_manager) {
+    GLuint diffuse;
+    texture_manager.load_texture_from_color(gruvbox::orange, diffuse);
+    GLuint specular;
+    texture_manager.load_texture_from_color(gruvbox::fg, specular);
+    // material
+    Material material;
+    material.diffuse_texture = diffuse;
+    material.specular_texture = specular;
+    material.shininess = 32;
+    return material;
+  }
 };
 
 struct DirectionalLight {
@@ -154,134 +170,70 @@ private:
   glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
   glm::vec3 scale_factor{1.0f};
 
-  bool load_model(std::string model_path, TextureManager texture_manager) {
-    cgltf_result res;
-    cgltf_options opt = {cgltf_file_type_invalid};
-    cgltf_data *data = nullptr;
-    res = cgltf_parse_file(&opt, model_path.c_str(), &data);
-    if (res != cgltf_result_success) {
-      fprintf(stderr, "Failed to parse glTF file %s!\n", model_path.c_str());
+  bool load_model(const std::string &model_path,
+                  TextureManager &texture_manager) {
+    std::filesystem::path obj_path(model_path);
+    std::filesystem::path model_dir_path = obj_path.parent_path().parent_path();
+
+    objl::Loader loader;
+    bool res = loader.LoadFile(obj_path.string());
+    if (!res) {
+      fprintf(stderr, "Failed to load model from file %s\n", obj_path.c_str());
       return false;
     }
-    res = cgltf_load_buffers(&opt, data, model_path.c_str());
-    if (res != cgltf_result_success) {
-      fprintf(stderr, "Failed to load glTF file %s!\n", model_path.c_str());
-      cgltf_free(data);
-      return false;
-    }
-    res = cgltf_validate(data);
-    if (res != cgltf_result_success) {
-      fprintf(stderr, "Failed to validate glTF data from file %s!\n",
-              model_path.c_str());
-      cgltf_free(data);
-      return false;
-    }
-
-    for (cgltf_size i = 0; i < data->meshes_count; i++) {
-      const auto &gltf_mesh = data->meshes[i];
-      for (cgltf_size j = 0; j < gltf_mesh.primitives_count; j++) {
-        const auto &primitive = gltf_mesh.primitives[j];
-        if (primitive.type != cgltf_primitive_type_triangles) {
-          fprintf(stderr, "Skipping unsupported primitive mode in mesh %zu.\n",
-                  static_cast<size_t>(i));
-          continue;
-        }
-
-        const cgltf_accessor *positions = nullptr;
-        const cgltf_accessor *normals = nullptr;
-        const cgltf_accessor *uvs = nullptr;
-
-        for (cgltf_size k = 0; k < primitive.attributes_count; k++) {
-          const cgltf_attribute &attribute = primitive.attributes[k];
-          switch (attribute.type) {
-          case cgltf_attribute_type_position:
-            positions = attribute.data;
-            break;
-          case cgltf_attribute_type_normal:
-            normals = attribute.data;
-            break;
-          case cgltf_attribute_type_texcoord:
-            if (attribute.index == 0)
-              uvs = attribute.data;
-            break;
-          default:
-            break;
-          }
-        }
-
-        if (positions == nullptr || positions->type != cgltf_type_vec3) {
-          fprintf(stderr, "Skipping mesh %zu primitive without positions.\n",
-                  static_cast<size_t>(i));
-          continue;
-        }
-
-        if ((normals != nullptr && normals->count != positions->count) ||
-            (uvs != nullptr && uvs->count != positions->count)) {
-          fprintf(stderr,
-                  "Skipping mesh %zu primitive with mismatched attributes.\n",
-                  static_cast<size_t>(i));
-          continue;
-        }
-
-        std::vector<Vertex> vertices(positions->count);
-        bool attributes_read = true;
-        for (cgltf_size k = 0; k < positions->count; k++) {
-          cgltf_float position[3];
-          cgltf_float normal[3] = {0.0f, 1.0f, 0.0f};
-          cgltf_float uv[2] = {0.0f, 0.0f};
-
-          attributes_read &=
-              cgltf_accessor_read_float(positions, k, position, 3) != 0;
-          if (normals != nullptr)
-            attributes_read &=
-                cgltf_accessor_read_float(normals, k, normal, 3) != 0;
-          if (uvs != nullptr)
-            attributes_read &= cgltf_accessor_read_float(uvs, k, uv, 2) != 0;
-
-          vertices[k] = {{position[0], position[1], position[2]},
-                         {normal[0], normal[1], normal[2]},
-                         {uv[0], uv[1]}};
-        }
-
-        if (!attributes_read) {
-          fprintf(stderr, "Failed to read attributes for mesh %zu.\n",
-                  static_cast<size_t>(i));
-          continue;
-        }
-
-        std::vector<GLuint> indices;
-        if (primitive.indices != nullptr) {
-          indices.resize(primitive.indices->count);
-          for (cgltf_size k = 0; k < primitive.indices->count; k++)
-            indices[k] = static_cast<GLuint>(
-                cgltf_accessor_read_index(primitive.indices, k));
-        } else {
-          indices.resize(vertices.size());
-          for (size_t k = 0; k < indices.size(); k++)
-            indices[k] = static_cast<GLuint>(k);
-        }
-
-        GLuint diffuse;
-        texture_manager.load_texture_from_color(gruvbox::orange, diffuse);
-        GLuint specular;
-        texture_manager.load_texture_from_color(gruvbox::fg, specular);
-        // material
-        Material material;
-        material.diffuse_texture = diffuse;
-        material.specular_texture = specular;
-        material.shininess = 32;
-        Mesh mesh(vertices, indices, material);
-        add_mesh(mesh);
+    for (const auto &l_mesh : loader.LoadedMeshes) {
+      std::vector<Vertex> vertices;
+      std::vector<GLuint> indices;
+      Material material;
+      for (const auto &l_vertix : l_mesh.Vertices) {
+        Vertex vertex = Vertex();
+        vertex.position = glm::vec3(l_vertix.Position.X, l_vertix.Position.Y,
+                                    l_vertix.Position.Z);
+        vertex.normal =
+            glm::vec3(l_vertix.Normal.X, l_vertix.Normal.Y, l_vertix.Normal.Z);
+        vertex.uv = glm::vec2(l_vertix.TextureCoordinate.X,
+                              l_vertix.TextureCoordinate.Y);
+        vertices.push_back(vertex);
       }
-    }
 
-    cgltf_free(data);
+      for (const auto &l_indices : l_mesh.Indices) {
+        indices.push_back(l_indices);
+      }
+
+      if (!l_mesh.MeshMaterial.map_Kd.empty() ||
+          !l_mesh.MeshMaterial.map_Ks.empty()) {
+        std::filesystem::path diffuse_path(l_mesh.MeshMaterial.map_Kd);
+        diffuse_path = model_dir_path / diffuse_path;
+        if (std::filesystem::is_regular_file(diffuse_path)) {
+          texture_manager.load_texture_from_file(diffuse_path.string(),
+                                                 material.diffuse_texture);
+        } else {
+          fprintf(stderr, "Diffuse texture not found at %s\n",
+                  diffuse_path.c_str());
+        }
+        std::filesystem::path specular_path(l_mesh.MeshMaterial.map_Ks);
+        specular_path = model_dir_path / specular_path;
+        if (std::filesystem::is_regular_file(specular_path)) {
+          texture_manager.load_texture_from_file(specular_path.string(),
+                                                 material.specular_texture);
+        } else {
+          fprintf(stderr, "Specular texture not found at %s\n",
+                  specular_path.c_str());
+        }
+        material.shininess = l_mesh.MeshMaterial.Ns;
+      } else {
+        material = Material::get_default_material(texture_manager);
+      }
+
+      Mesh mesh(vertices, indices, material);
+      add_mesh(mesh);
+    }
     return true;
   }
 
 public:
   Model() {}
-  Model(std::string model_path, TextureManager texture_manager) {
+  Model(const std::string &model_path, TextureManager &texture_manager) {
     load_model(model_path, texture_manager);
   }
   void add_mesh(Mesh &mesh) {

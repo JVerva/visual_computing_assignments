@@ -1,0 +1,17 @@
+# Motion Tracker Showcase material
+
+newmtl material_001
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ns 250.000000
+d 1.000000
+illum 2
+
+map_Kd textures/motion_tracker_base_color_srgb.png
+map_Ks textures/motion_tracker_metallic_raw.png
+map_d textures/motion_tracker_alpha_raw.png
+bump -bm 1.000000 textures/motion_tracker_normal_raw.png
+disp -bm 1.000000 textures/motion_tracker_displacement_raw.png
+map_Ke textures/motion_tracker_emission_srgb.png

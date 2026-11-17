@@ -42,15 +42,20 @@ public:
     glBindTexture(GL_TEXTURE_2D, id);
     // load and generate the texture
     int width, height, channels;
+    // glTF texture coordinates already use the image orientation expected by
+    // the renderer; flipping the image here mirrors the material vertically.
     stbi_set_flip_vertically_on_load_thread(true);
     unsigned char *data =
-        stbi_load(path.c_str(), &width, &height, &channels, 0);
+        stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (data) {
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB,
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
                    GL_UNSIGNED_BYTE, data);
       glGenerateMipmap(GL_TEXTURE_2D);
+      stbi_image_free(data);
+      glBindTexture(GL_TEXTURE_2D, 0);
     } else {
-      fprintf(stderr, "Failed to load texture\n");
+      fprintf(stderr, "Failed to load texture %s\n", path.c_str());
+      glBindTexture(GL_TEXTURE_2D, 0);
       return false;
     }
     file_loaded_textures[path] = id;

@@ -71,6 +71,9 @@ The repository path is embedded at configure time, so shaders and bundled
 images are found even when the executables are launched from another
 directory.
 
+Model loading uses one format: pass the exact `.obj` file path to `Model`.
+Texture paths in the OBJ's MTL file are resolved relative to the OBJ file.
+
  Sorry for putting
 definitions in header files, I don't love having to change 100 files; this will be corrected in the
 future.
