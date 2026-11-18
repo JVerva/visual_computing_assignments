@@ -2,26 +2,31 @@
 
 #include <cstdio>
 #include <opencv2/core.hpp>
+#include <opencv2/core/base.hpp>
 #include <opencv2/core/cvstd_wrapper.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/operations.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/features.hpp>
+#include <opencv2/features2d.hpp>
 #include <opencv2/geometry/3d.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/xfeatures2d.hpp>
+#include <opencv2/xfeatures2d/nonfree.hpp>
 #include <tuple>
 #include <vector>
 
 // how many matches we take and evaluate, needs to be 2 for D.Lowie testing
 static const unsigned int K = 2;
+static const cv::Scalar DEBUG_COLOR = cv::Scalar(0, 255, 0);
 
 class FeatureTracker {
-private:
+protected:
   cv::Mat target_image;
   cv::Mat input_image;
   cv::Mat match_image;
 
-  cv::Ptr<cv::SIFT> detector;
+  cv::Ptr<cv::Feature2D> detector;
   cv::Ptr<cv::BFMatcher> matcher;
   std::vector<std::vector<cv::DMatch>> matches;
   std::vector<cv::DMatch> good_matches;
@@ -82,7 +87,7 @@ private:
   }
 
   bool find_homography() {
-    bool ret = target_good_points.size() > 3 and input_good_points.size() > 3;
+    bool ret = target_good_points.size() > 8 and input_good_points.size() > 8;
     cv::Mat inlier_mask;
     if (ret) {
       homography = cv::findHomography(target_good_points, input_good_points,
@@ -117,8 +122,8 @@ private:
         pixel_point.y = int(projected_edges[i].y);
         pixel_points.push_back(pixel_point);
       }
-      cv::polylines(match_image, pixel_points, true, cv::Scalar(0, 255, 0), 5);
-      cv::polylines(match_image, pixel_edges, true, cv::Scalar(0, 255, 0), 5);
+      cv::polylines(match_image, pixel_points, true, DEBUG_COLOR, 5);
+      cv::polylines(match_image, pixel_edges, true, DEBUG_COLOR, 5);
     }
     return true;
   }
@@ -145,15 +150,6 @@ private:
   }
 
 public:
-  FeatureTracker(int features, const cv::Mat &target_image,
-                 float match_ratio = 0.8, float physical_width_m = 1,
-                 float physical_height_m = 1) {
-    detector = cv::SIFT::create(features);
-    matcher = cv::BFMatcher::create();
-    set_target(target_image, physical_width_m, physical_height_m);
-    good_match_ratio = match_ratio;
-  }
-
   void set_target(const cv::Mat &image, float physical_width_m,
                   float physical_height_m) {
     set_target_image(image);
@@ -180,7 +176,7 @@ public:
   }
 
   void set_input_image(const cv::Mat &input_image_) {
-    cv::cvtColor(input_image_, input_image, cv::COLOR_RGB2GRAY);
+    cv::cvtColor(input_image_, input_image, cv::COLOR_BGR2GRAY);
   }
 
   cv::Mat get_match_image() { return match_image; }
@@ -197,5 +193,51 @@ public:
       draw_feature_bounding_box();
     }
     estimate_pose();
+  }
+};
+
+class SIFTFeatureTracker : public FeatureTracker {
+public:
+  SIFTFeatureTracker(uint features, const cv::Mat &target_image,
+                     float match_ratio = 0.8, float physical_width_m = 1,
+                     float physical_height_m = 1) {
+    detector = cv::SIFT::create(features);
+    matcher = cv::BFMatcher::create(cv::NORM_L2);
+    set_target(target_image, physical_width_m, physical_height_m);
+    good_match_ratio = match_ratio;
+  }
+};
+
+class SURFFeatureTracker : public FeatureTracker {
+public:
+  SURFFeatureTracker(const cv::Mat &target_image, float match_ratio = 0.8,
+                     float physical_width_m = 1, float physical_height_m = 1) {
+    detector = cv::xfeatures2d::SURF::create();
+    matcher = cv::BFMatcher::create(cv::NORM_L2);
+    set_target(target_image, physical_width_m, physical_height_m);
+    good_match_ratio = match_ratio;
+  }
+};
+
+class ORBFeatureTracker : public FeatureTracker {
+public:
+  ORBFeatureTracker(uint features, const cv::Mat &target_image,
+                    float match_ratio = 0.8, float physical_width_m = 1,
+                    float physical_height_m = 1) {
+    detector = cv::ORB::create(features);
+    matcher = cv::BFMatcher::create(cv::NORM_HAMMING);
+    set_target(target_image, physical_width_m, physical_height_m);
+    good_match_ratio = match_ratio;
+  }
+};
+
+class AKAZEFeatureTracker : public FeatureTracker {
+public:
+  AKAZEFeatureTracker(const cv::Mat &target_image, float match_ratio = 0.8,
+                      float physical_width_m = 1, float physical_height_m = 1) {
+    detector = cv::xfeatures2d::AKAZE::create();
+    matcher = cv::BFMatcher::create(cv::NORM_HAMMING);
+    set_target(target_image, physical_width_m, physical_height_m);
+    good_match_ratio = match_ratio;
   }
 };

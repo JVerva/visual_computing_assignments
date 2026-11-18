@@ -11,6 +11,9 @@
 #include <glm/ext/quaternion_geometric.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
+#include <glm/matrix.hpp>
 #include <memory>
 #include <opencv2/core.hpp>
 #include <opencv2/core/mat.hpp>
@@ -19,7 +22,7 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 
-#define TRACKER_FEATURES 1000
+#define TRACKER_FEATURES 2000
 #define FEATURE_RATIO 0.8
 const std::string TARGET_IMAGE_PATH =
     std::string(PROJECT_DIR) + "/assets/images/feature_matching/target.png";
@@ -68,14 +71,27 @@ int main() {
   }
 
   cv::Mat target_image = cv::imread(TARGET_IMAGE_PATH);
-  FeatureTracker feature_tracker =
-      FeatureTracker(TRACKER_FEATURES, target_image, FEATURE_RATIO);
-  feature_tracker.set_camera_calibration(camera->calibration_info.intrinsic,
-                                         camera->calibration_info.dist_coefs);
+  FeatureTracker sift_feature_tracker =
+      SIFTFeatureTracker(TRACKER_FEATURES, target_image, FEATURE_RATIO);
+  sift_feature_tracker.set_camera_calibration(
+      camera->calibration_info.intrinsic, camera->calibration_info.dist_coefs);
+  FeatureTracker orb_feature_tracker =
+      ORBFeatureTracker(TRACKER_FEATURES, target_image, FEATURE_RATIO);
+  orb_feature_tracker.set_camera_calibration(
+      camera->calibration_info.intrinsic, camera->calibration_info.dist_coefs);
+  FeatureTracker surf_feature_tracker =
+      SURFFeatureTracker(target_image, FEATURE_RATIO);
+  surf_feature_tracker.set_camera_calibration(
+      camera->calibration_info.intrinsic, camera->calibration_info.dist_coefs);
+  FeatureTracker akaze_feature_tracker =
+      AKAZEFeatureTracker(target_image, FEATURE_RATIO);
+  akaze_feature_tracker.set_camera_calibration(
+      camera->calibration_info.intrinsic, camera->calibration_info.dist_coefs);
   GLuint background_texture;
   create_default_texture(background_texture);
 
   Mode mode = FEATURE;
+  FeatureTracker feature_tracker = sift_feature_tracker;
 
   // light creation
   DirectionalLight light;
@@ -105,11 +121,24 @@ int main() {
     feature_tracker.set_input_image(webcam.frame);
     feature_tracker.visualy_track(true);
     // get input
-    if (input_manager.is_just_pressed(GLFW_KEY_1)) {
+
+    if (input_manager.is_just_pressed(GLFW_KEY_N)) {
       mode = POSE;
     }
-    if (input_manager.is_just_pressed(GLFW_KEY_0)) {
+    if (input_manager.is_just_pressed(GLFW_KEY_M)) {
       mode = FEATURE;
+    }
+    if (input_manager.is_just_pressed(GLFW_KEY_0)) {
+      feature_tracker = sift_feature_tracker;
+    }
+    if (input_manager.is_just_pressed(GLFW_KEY_1)) {
+      feature_tracker = orb_feature_tracker;
+    }
+    if (input_manager.is_just_pressed(GLFW_KEY_2)) {
+      feature_tracker = surf_feature_tracker;
+    }
+    if (input_manager.is_just_pressed(GLFW_KEY_3)) {
+      feature_tracker = akaze_feature_tracker;
     }
     // change background
     cv::Mat background_image;
@@ -128,6 +157,7 @@ int main() {
       if (rvec.empty() or tvec.empty()) {
         break;
       }
+
       glm::mat4 view = cvt_glm_view(rvec, tvec);
       camera->set_transform_from_view(view);
       break;
