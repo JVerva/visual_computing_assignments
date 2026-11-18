@@ -163,12 +163,105 @@ private:
   GLuint vao, vbo, ebo;
 };
 
-class Model {
+class Transform {
 private:
-  std::vector<Mesh> meshes;
   glm::vec3 position{0.0f};
   glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
   glm::vec3 scale_factor{1.0f};
+  glm::vec3 offset_position{0.0f};
+  glm::quat offset_rotation{1.0f, 0.0f, 0.0f, 0.0f};
+  glm::vec3 offset_scale{1.0f};
+
+public:
+  glm::mat4 get_transform() const {
+    glm::mat4 offset = glm::translate(glm::mat4(1.0f), offset_position) *
+                       glm::mat4_cast(offset_rotation) *
+                       glm::scale(glm::mat4(1.0f), offset_scale);
+    glm::mat4 current = glm::translate(glm::mat4(1.0f), position) *
+                        glm::mat4_cast(rotation) *
+                        glm::scale(glm::mat4(1.0f), scale_factor);
+    return current * offset;
+  }
+
+  const glm::vec3 &get_position() const { return position; }
+
+  const glm::vec3 &get_scale() const { return scale_factor; }
+
+  const glm::quat &get_rotation() const { return rotation; }
+
+  const glm::vec3 &get_offset_position() const { return offset_position; }
+
+  const glm::quat &get_offset_rotation() const { return offset_rotation; }
+
+  const glm::vec3 &get_offset_scale() const { return offset_scale; }
+
+  void set_offset_position(const glm::vec3 &new_offset_position) {
+    offset_position = new_offset_position;
+  }
+
+  void set_offset_rotation(const glm::vec3 &rotation_vector) {
+    float angle = glm::length(rotation_vector);
+    if (angle == 0.0f) {
+      offset_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+      return;
+    }
+    offset_rotation = glm::angleAxis(angle, rotation_vector / angle);
+  }
+
+  void set_offset_scale(const glm::vec3 &new_offset_scale) {
+    offset_scale = new_offset_scale;
+  }
+
+  void move(const glm::vec3 &translation) {
+    position += rotation * translation;
+  }
+
+  void move_global(const glm::vec3 &translation) { position += translation; }
+
+  void set_position(const glm::vec3 &new_position) { position = new_position; }
+
+  // input: axis-angle vector, angle in radians
+  void rotate(const glm::vec3 &rotation_vector) {
+    float angle = glm::length(rotation_vector);
+    if (angle == 0.0f)
+      return;
+
+    glm::vec3 axis = rotation_vector / angle;
+    glm::quat delta = glm::angleAxis(angle, axis);
+
+    rotation = glm::normalize(rotation * delta);
+  }
+
+  void rotate_global(const glm::vec3 &rotation_vector) {
+    float angle = glm::length(rotation_vector);
+    if (angle == 0.0f)
+      return;
+
+    glm::vec3 axis = rotation_vector / angle;
+    glm::quat delta = glm::angleAxis(angle, axis);
+
+    rotation = glm::normalize(delta * rotation);
+  }
+
+  void set_rotation(const glm::vec3 &rotation_vector) {
+    float angle = glm::length(rotation_vector);
+
+    if (angle == 0.0f) {
+      rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+      return;
+    }
+
+    rotation = glm::angleAxis(angle, rotation_vector / angle);
+  }
+
+  void scale(const glm::vec3 &factors) { scale_factor *= factors; }
+
+  void set_scale(const glm::vec3 &new_scale) { scale_factor = new_scale; }
+};
+
+class Model {
+private:
+  std::vector<Mesh> meshes;
 
   bool load_model(const std::string &model_path,
                   TextureManager &texture_manager) {
@@ -232,6 +325,8 @@ private:
   }
 
 public:
+  Transform transform;
+
   Model() {}
   Model(const std::string &model_path, TextureManager &texture_manager) {
     load_model(model_path, texture_manager);
@@ -241,72 +336,8 @@ public:
     meshes.push_back(mesh);
   }
 
-  // Build the transformation matrix: T * R * S
-  glm::mat4 get_transform() const {
-    return glm::translate(glm::mat4(1.0f), position) *
-           glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale_factor);
-  }
-
-  const glm::vec3 &get_position() const { return position; }
-
-  const glm::vec3 &get_scale() const { return scale_factor; }
-
-  const glm::quat &get_rotation() const { return rotation; }
-
-  void move(const glm::vec3 &translation) {
-    position += rotation * translation;
-  }
-
-  void move_global(const glm::vec3 &translation) { position += translation; }
-
-  void set_position(const glm::vec3 &new_position) { position = new_position; }
-
-  void set_transform(const glm::mat4 &transform) {
-    position = glm::vec3(transform[3]);
-    rotation = glm::quat_cast(transform);
-    scale_factor = glm::vec3(1.0f);
-  }
-
-  // Input: axis-angle vector, angle in radians
-  void rotate(const glm::vec3 &rotation_vector) {
-    float angle = glm::length(rotation_vector);
-    if (angle == 0.0f)
-      return;
-
-    glm::vec3 axis = rotation_vector / angle;
-    glm::quat delta = glm::angleAxis(angle, axis);
-
-    rotation = glm::normalize(rotation * delta);
-  }
-
-  void rotate_global(const glm::vec3 &rotation_vector) {
-    float angle = glm::length(rotation_vector);
-    if (angle == 0.0f)
-      return;
-
-    glm::vec3 axis = rotation_vector / angle;
-    glm::quat delta = glm::angleAxis(angle, axis);
-
-    rotation = glm::normalize(delta * rotation);
-  }
-
-  void set_rotation(const glm::vec3 &rotation_vector) {
-    float angle = glm::length(rotation_vector);
-
-    if (angle == 0.0f) {
-      rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-      return;
-    }
-
-    rotation = glm::angleAxis(angle, rotation_vector / angle);
-  }
-
-  void scale(const glm::vec3 &factors) { scale_factor *= factors; }
-
-  void set_scale(const glm::vec3 &new_scale) { scale_factor = new_scale; }
-
   void draw(Shader &shader) {
-    shader.set_matrix_4f("model", get_transform());
+    shader.set_matrix_4f("model", transform.get_transform());
     for (Mesh mesh : meshes) {
       mesh.draw(shader);
     }

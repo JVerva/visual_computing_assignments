@@ -16,8 +16,8 @@ namespace fs = std::filesystem;
 
 enum Filter { NONE, GRAYSCALE, GAUSSIAN_BLUR, SOBEL, SHARPEN };
 
-inline bool load_directory_images(const std::string &path,
-                                  std::vector<cv::Mat> &images) {
+bool load_directory_images(const std::string &path,
+                           std::vector<cv::Mat> &images) {
   if (!fs::exists(path) || !fs::is_directory(path)) {
     fprintf(stderr, "Path does not exist or is not a directory: %s\n",
             path.c_str());
@@ -51,7 +51,7 @@ inline bool load_directory_images(const std::string &path,
   return success;
 }
 
-inline bool find_refined_chessboard_corners(
+bool find_refined_chessboard_corners(
     const cv::Mat &image, const cv::Size &pattern_size,
     std::vector<cv::Point2f> &corners,
     const cv::Size &refinement_win_size = cv::Size(5, 5),
@@ -70,8 +70,8 @@ inline bool find_refined_chessboard_corners(
   return success;
 }
 
-inline void obj_points_from_pattern(const cv::Size &size,
-                                    std::vector<cv::Point3f> &obj_points) {
+void obj_points_from_pattern(const cv::Size &size,
+                             std::vector<cv::Point3f> &obj_points) {
   for (int y = 0; y < size.height; y++) {
     for (int x = 0; x < size.width; x++) {
       obj_points.push_back(cv::Point3f(float(x), float(y), 0.0));
@@ -79,7 +79,7 @@ inline void obj_points_from_pattern(const cv::Size &size,
   }
 }
 
-static float compute_reprojection_error(
+float compute_reprojection_error(
     const std::vector<std::vector<cv::Point3f>> &obj_points,
     const std::vector<std::vector<cv::Point2f>> &img_points,
     const std::vector<cv::Mat> &rvecs, const std::vector<cv::Mat> &tvecs,
@@ -97,7 +97,7 @@ static float compute_reprojection_error(
   return mean_error / obj_points.size();
 }
 
-inline bool calibrate_camera_from_chessboard_images(
+bool calibrate_camera_from_chessboard_images(
     const std::vector<cv::Mat> &images, const cv::Size &pattern_size,
     cv::Mat &cam, std::vector<double> &dist_coefs,
     std::vector<cv::Mat> &rotation_vecs, std::vector<cv::Mat> &trans_vecs,
@@ -149,8 +149,7 @@ inline bool calibrate_camera_from_chessboard_images(
   return true;
 }
 
-static void transform_image(cv::Mat in_frame, cv::Mat &out_frame,
-                            Filter filter) {
+void transform_image(cv::Mat in_frame, cv::Mat &out_frame, Filter filter) {
   // transfrom og frame
   cv::Mat s_x;
   cv::Mat s_y;

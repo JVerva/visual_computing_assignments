@@ -5,7 +5,6 @@
 #include "input_manager.hpp"
 #include "renderer.hpp"
 #include "texture_manager.hpp"
-#include "themes.hpp"
 #include "utils.hpp"
 #include "window.hpp"
 #include <GLFW/glfw3.h>
@@ -76,8 +75,8 @@ int main() {
   Mesh cube_mesh = Mesh(cube_vertices, cube_indices, cube_material);
   std::shared_ptr<Model> cube = std::make_shared<Model>();
   cube->add_mesh(cube_mesh);
-  cube->scale(glm::vec3(1, 1, 0.1));
-  cube->move(glm::vec3(0.5, 0.5, -0.05));
+  cube->transform.scale(glm::vec3(1, 1, 0.1));
+  cube->transform.move(glm::vec3(0.5, 0.5, -0.05));
   // add cube to scene
   renderer.add_model_to_scene(cube);
 

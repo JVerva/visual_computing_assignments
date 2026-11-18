@@ -56,9 +56,9 @@ int main() {
   glm::vec3 translation = glm::vec3(0, 0, 0);
   glm::vec3 scaling = glm::vec3(1);
   glm::vec3 rotation = glm::vec3(0, glm::quarter_pi<float>(), 0);
-  model->move(translation);
-  model->rotate(rotation);
-  model->scale(scaling);
+  model->transform.move(translation);
+  model->transform.set_rotation(rotation);
+  model->transform.scale(scaling);
   // add cube to scene
   renderer.add_model_to_scene(model);
 

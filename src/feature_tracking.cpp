@@ -23,6 +23,10 @@
 #define FEATURE_RATIO 0.8
 const std::string TARGET_IMAGE_PATH =
     std::string(PROJECT_DIR) + "/assets/images/feature_matching/target.png";
+const std::string MODEL_PATH =
+    std::string(PROJECT_DIR) +
+    "/assets/models/motion-tracker-alien-isolation/source/"
+    "motion_tracker_showcase.obj";
 
 enum Mode { FEATURE, POSE };
 
@@ -81,29 +85,17 @@ int main() {
   light.specular = glm::vec3(1.0);
   renderer.set_scene_light(light);
 
-  // cube creation
-  // vertices
-  std::vector<Vertex> cube_vertices;
-  std::vector<uint> cube_indices;
-  get_cube_geometry(1, cube_vertices, cube_indices);
-  GLuint cube_diffuse;
-  texture_manager.load_texture_from_color(gruvbox::orange, cube_diffuse);
-  GLuint cube_specular;
-  texture_manager.load_texture_from_color(gruvbox::fg, cube_specular);
-  // material
-  Material cube_material;
-  cube_material.diffuse_texture = cube_diffuse;
-  cube_material.specular_texture = cube_specular;
-  cube_material.shininess = 32;
   // model
-  Mesh cube_mesh = Mesh(cube_vertices, cube_indices, cube_material);
-  std::shared_ptr<Model> cube = std::make_shared<Model>();
-  const glm::vec3 default_cube_position = glm::vec3(0.5, 0.5, 0);
-  cube->add_mesh(cube_mesh);
-  cube->set_position(default_cube_position);
-  cube->set_scale(glm::vec3(0.5, 0.5, 0.5));
+  std::shared_ptr<Model> model =
+      std::make_shared<Model>(MODEL_PATH, texture_manager);
+  const glm::vec3 default_model_position = glm::vec3(0.5, 0.5, 0);
+  const glm::vec3 default_model_rotation =
+      glm::vec3(-glm::half_pi<float>(), 0, 0);
+  model->transform.set_offset_position(default_model_position);
+  model->transform.set_offset_rotation(default_model_rotation);
+  model->transform.set_offset_scale(glm::vec3(5, 5, 5));
   // add cube to scene
-  renderer.add_model_to_scene(cube);
+  renderer.add_model_to_scene(model);
 
   double delta_t;
   double last_frame_t = glfwGetTime();
@@ -120,24 +112,20 @@ int main() {
       mode = FEATURE;
     }
     // change background
+    cv::Mat background_image;
     switch (mode) {
-    case FEATURE: {
-      cv::Mat background_image;
+    case FEATURE:
       cv::flip(feature_tracker.get_match_image(), background_image, 0);
       write_image_to_texture(background_texture, background_image);
-    }
       camera->set_position(default_camera_position);
       break;
-    case POSE: {
-      cv::Mat background_image;
+    case POSE:
       cv::flip(webcam.frame, background_image, 0);
       write_image_to_texture(background_texture, background_image);
-    }
       auto pose = feature_tracker.get_estimated_pose();
       auto rvec = get<0>(pose);
       auto tvec = get<1>(pose);
       if (rvec.empty() or tvec.empty()) {
-        camera->set_position(default_camera_position);
         break;
       }
       glm::mat4 view = cvt_glm_view(rvec, tvec);
