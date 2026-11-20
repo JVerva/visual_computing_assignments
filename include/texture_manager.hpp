@@ -44,7 +44,7 @@ public:
     int width, height, channels;
     // glTF texture coordinates already use the image orientation expected by
     // the renderer; flipping the image here mirrors the material vertically.
-    stbi_set_flip_vertically_on_load_thread(true);
+    stbi_set_flip_vertically_on_load_thread(false);
     unsigned char *data =
         stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (data) {

@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <glm/detail/qualifier.hpp>
 #include <glm/ext/quaternion_geometric.hpp>
+#include <glm/ext/scalar_constants.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -22,14 +23,13 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 
-#define TRACKER_FEATURES 2000
-#define FEATURE_RATIO 0.8
+#define TRACKER_FEATURES 1000
+
 const std::string TARGET_IMAGE_PATH =
-    std::string(PROJECT_DIR) + "/assets/images/feature_matching/target.png";
-const std::string MODEL_PATH =
-    std::string(PROJECT_DIR) +
-    "/assets/models/motion-tracker-alien-isolation/source/"
-    "motion_tracker_showcase.obj";
+    std::string(PROJECT_DIR) + "/assets/images/feature_matching/id_1.png";
+const std::string MODEL_PATH = std::string(PROJECT_DIR) +
+                               "/assets/models/pistol/source/"
+                               "pistol.obj";
 
 enum Mode { FEATURE, POSE };
 
@@ -72,19 +72,17 @@ int main() {
 
   cv::Mat target_image = cv::imread(TARGET_IMAGE_PATH);
   FeatureTracker sift_feature_tracker =
-      SIFTFeatureTracker(TRACKER_FEATURES, target_image, FEATURE_RATIO);
+      SIFTFeatureTracker(TRACKER_FEATURES, target_image);
   sift_feature_tracker.set_camera_calibration(
       camera->calibration_info.intrinsic, camera->calibration_info.dist_coefs);
   FeatureTracker orb_feature_tracker =
-      ORBFeatureTracker(TRACKER_FEATURES, target_image, FEATURE_RATIO);
+      ORBFeatureTracker(TRACKER_FEATURES, target_image);
   orb_feature_tracker.set_camera_calibration(
       camera->calibration_info.intrinsic, camera->calibration_info.dist_coefs);
-  FeatureTracker surf_feature_tracker =
-      SURFFeatureTracker(target_image, FEATURE_RATIO);
+  FeatureTracker surf_feature_tracker = SURFFeatureTracker(target_image);
   surf_feature_tracker.set_camera_calibration(
       camera->calibration_info.intrinsic, camera->calibration_info.dist_coefs);
-  FeatureTracker akaze_feature_tracker =
-      AKAZEFeatureTracker(target_image, FEATURE_RATIO);
+  FeatureTracker akaze_feature_tracker = AKAZEFeatureTracker(target_image);
   akaze_feature_tracker.set_camera_calibration(
       camera->calibration_info.intrinsic, camera->calibration_info.dist_coefs);
   GLuint background_texture;
@@ -106,22 +104,28 @@ int main() {
       std::make_shared<Model>(MODEL_PATH, texture_manager);
   const glm::vec3 default_model_position = glm::vec3(0.5, 0.5, 0);
   const glm::vec3 default_model_rotation =
-      glm::vec3(-glm::half_pi<float>(), 0, 0);
+      glm::vec3(0, -glm::half_pi<float>(), 0);
   model->transform.set_offset_position(default_model_position);
   model->transform.set_offset_rotation(default_model_rotation);
-  model->transform.set_offset_scale(glm::vec3(5, 5, 5));
+  model->transform.set_offset_scale(glm::vec3(0.3, 0.3, 0.3));
   // add cube to scene
   renderer.add_model_to_scene(model);
 
-  double delta_t;
   double last_frame_t = glfwGetTime();
   while (!window.should_close()) {
-    delta_t = last_frame_t - glfwGetTime();
+    double frame_start = glfwGetTime();
+    double frame_delta = frame_start - last_frame_t;
+    last_frame_t = frame_start;
+
+    double capture_start = glfwGetTime();
     webcam.update_frame();
+    double capture_end = glfwGetTime();
+
+    double tracking_start = glfwGetTime();
     feature_tracker.set_input_image(webcam.frame);
     feature_tracker.visualy_track(true);
+    double tracking_end = glfwGetTime();
     // get input
-
     if (input_manager.is_just_pressed(GLFW_KEY_N)) {
       mode = POSE;
     }
@@ -164,11 +168,23 @@ int main() {
     }
     renderer.set_back_ground_texture(background_texture);
 
+    double render_start = glfwGetTime();
     renderer.render_scene();
+    double render_end = glfwGetTime();
     input_manager.update();
+
+    double swap_start = glfwGetTime();
     window.swap_buffers();
+    double swap_end = glfwGetTime();
     window.poll_events();
-    last_frame_t = glfwGetTime();
+
+    fprintf(stdout,
+            "frame: %.2f ms, capture: %.2f ms, tracking: %.2f ms, "
+            "render: %.2f ms, swap: %.2f ms\n",
+            frame_delta * 1000.0, (capture_end - capture_start) * 1000.0,
+            (tracking_end - tracking_start) * 1000.0,
+            (render_end - render_start) * 1000.0,
+            (swap_end - swap_start) * 1000.0);
   }
 
   window.close();

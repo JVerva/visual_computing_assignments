@@ -16,9 +16,24 @@
 #include <tuple>
 #include <vector>
 
+// match params
 // how many matches we take and evaluate, needs to be 2 for D.Lowie testing
 static const unsigned int K = 2;
+static const unsigned int MIN_MATCHES = 16;
+static const float MATCH_RATIO = 0.7;
+// pose estimation params
+static const unsigned int MIN_INLIERS = 12;
+// homography RANSAC params
+static const unsigned int H_REPROJ_THRESH = 3;
+static const unsigned int H_MAX_ITERATIONS = 2000;
+static const float H_CONFIDENCE = 0.995;
+// pnp RANSAC params
+static const unsigned int PNP_REPROJ_THRESH = 8;
+static const unsigned int PNP_MAX_ITERATIONS = 100;
+static const float PNP_CONFIDENCE = 0.99;
+
 static const cv::Scalar DEBUG_COLOR = cv::Scalar(0, 255, 0);
+static const unsigned int DEBUG_THCKNESS = 5;
 
 class FeatureTracker {
 protected:
@@ -30,7 +45,6 @@ protected:
   cv::Ptr<cv::BFMatcher> matcher;
   std::vector<std::vector<cv::DMatch>> matches;
   std::vector<cv::DMatch> good_matches;
-  float good_match_ratio;
 
   std::vector<cv::KeyPoint> target_key_points, input_key_points;
   std::vector<cv::Point2f> target_good_points, input_good_points;
@@ -65,7 +79,7 @@ protected:
                 match.size());
         continue;
       }
-      if (match[0].distance < good_match_ratio * match[1].distance) {
+      if (match[0].distance < MATCH_RATIO * match[1].distance) {
         good_matches.push_back(match[0]);
         target_good_points.push_back(target_key_points[match[0].queryIdx].pt);
         input_good_points.push_back(input_key_points[match[0].trainIdx].pt);
@@ -87,11 +101,12 @@ protected:
   }
 
   bool find_homography() {
-    bool ret = target_good_points.size() > 8 and input_good_points.size() > 8;
+    bool ret = good_matches.size() > MIN_MATCHES;
     cv::Mat inlier_mask;
     if (ret) {
       homography = cv::findHomography(target_good_points, input_good_points,
-                                      cv::RANSAC, 3, inlier_mask);
+                                      cv::RANSAC, H_REPROJ_THRESH, inlier_mask,
+                                      H_MAX_ITERATIONS, H_CONFIDENCE);
       for (size_t k = 0; k < inlier_mask.rows; ++k) {
         if (!inlier_mask.at<uchar>(k, 0))
           continue;
@@ -122,8 +137,10 @@ protected:
         pixel_point.y = int(projected_edges[i].y);
         pixel_points.push_back(pixel_point);
       }
-      cv::polylines(match_image, pixel_points, true, DEBUG_COLOR, 5);
-      cv::polylines(match_image, pixel_edges, true, DEBUG_COLOR, 5);
+      cv::polylines(match_image, pixel_points, true, DEBUG_COLOR,
+                    DEBUG_THCKNESS);
+      cv::polylines(match_image, pixel_edges, true, DEBUG_COLOR,
+                    DEBUG_THCKNESS);
     }
     return true;
   }
@@ -134,7 +151,8 @@ protected:
   }
 
   bool estimate_pose() {
-    if (input_inlier_points.size() < 6 or target_inlier_points.size() < 6 or
+    if (input_inlier_points.size() < MIN_INLIERS or
+        target_inlier_points.size() < MIN_INLIERS or
         distortion_coeffs.empty() or intrinsic.empty()) {
       return false;
     }
@@ -145,7 +163,8 @@ protected:
           point.y * target_physical_size.height / target_image.rows, 0.0));
     }
     cv::solvePnPRansac(object_points, input_inlier_points, intrinsic,
-                       distortion_coeffs, rvec, tvec);
+                       distortion_coeffs, rvec, tvec, false, PNP_MAX_ITERATIONS,
+                       PNP_REPROJ_THRESH, PNP_CONFIDENCE);
     return true;
   }
 
@@ -199,45 +218,50 @@ public:
 class SIFTFeatureTracker : public FeatureTracker {
 public:
   SIFTFeatureTracker(uint features, const cv::Mat &target_image,
-                     float match_ratio = 0.8, float physical_width_m = 1,
-                     float physical_height_m = 1) {
+                     float physical_width_m = 1, float physical_height_m = 1) {
     detector = cv::SIFT::create(features);
     matcher = cv::BFMatcher::create(cv::NORM_L2);
     set_target(target_image, physical_width_m, physical_height_m);
-    good_match_ratio = match_ratio;
   }
 };
 
 class SURFFeatureTracker : public FeatureTracker {
 public:
-  SURFFeatureTracker(const cv::Mat &target_image, float match_ratio = 0.8,
+  SURFFeatureTracker(const cv::Mat &target_image, uint hessian_thresh = 400,
                      float physical_width_m = 1, float physical_height_m = 1) {
-    detector = cv::xfeatures2d::SURF::create();
+    detector = cv::xfeatures2d::SURF::create(hessian_thresh, 8);
     matcher = cv::BFMatcher::create(cv::NORM_L2);
     set_target(target_image, physical_width_m, physical_height_m);
-    good_match_ratio = match_ratio;
   }
 };
 
 class ORBFeatureTracker : public FeatureTracker {
 public:
   ORBFeatureTracker(uint features, const cv::Mat &target_image,
-                    float match_ratio = 0.8, float physical_width_m = 1,
-                    float physical_height_m = 1) {
-    detector = cv::ORB::create(features);
+                    float physical_width_m = 1, float physical_height_m = 1) {
+    detector = cv::ORB::create(features, 1.2, 8, 31, 0, 4);
     matcher = cv::BFMatcher::create(cv::NORM_HAMMING);
     set_target(target_image, physical_width_m, physical_height_m);
-    good_match_ratio = match_ratio;
   }
 };
 
 class AKAZEFeatureTracker : public FeatureTracker {
 public:
-  AKAZEFeatureTracker(const cv::Mat &target_image, float match_ratio = 0.8,
-                      float physical_width_m = 1, float physical_height_m = 1) {
-    detector = cv::xfeatures2d::AKAZE::create();
+  AKAZEFeatureTracker(const cv::Mat &target_image, float physical_width_m = 1,
+                      float physical_height_m = 1) {
+    detector = cv::xfeatures2d::AKAZE::create(
+        cv::xfeatures2d::AKAZE::DESCRIPTOR_MLDB, 0, 3, 0.001, 8, 3);
     matcher = cv::BFMatcher::create(cv::NORM_HAMMING);
     set_target(target_image, physical_width_m, physical_height_m);
-    good_match_ratio = match_ratio;
   }
 };
+
+// measurement logging functions
+void print_global_params(std::string log_file_path);
+
+void print_feature_tracker_params(FeatureTracker feature_tracker,
+                                  std::string log_file_path);
+
+void print_feature_tracker_measurement_header(std::string log_file_path);
+
+void print_feature_tracker_measurement(uint frame, std::string log_file_path);

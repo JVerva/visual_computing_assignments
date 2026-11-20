@@ -51,6 +51,7 @@ public:
     }
 
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(0);
     // let glad load the context
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
       fprintf(stderr, "Failed to initialize GLAD\n");

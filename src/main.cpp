@@ -45,16 +45,15 @@ int main() {
   renderer.set_scene_light(light);
 
   // model
-  std::string model_path =
-      std::string(PROJECT_DIR) +
-      "/assets/models/motion-tracker-alien-isolation/source/"
-      "motion_tracker_showcase.obj";
+  std::string model_path = std::string(PROJECT_DIR) +
+                           "/assets/models/pistol/source/"
+                           "pistol.obj";
   std::shared_ptr<Model> model =
       std::make_shared<Model>(model_path, texture_manager);
 
   // test transformations
   glm::vec3 translation = glm::vec3(0, 0, 0);
-  glm::vec3 scaling = glm::vec3(1);
+  glm::vec3 scaling = glm::vec3(0.1);
   glm::vec3 rotation = glm::vec3(0, glm::quarter_pi<float>(), 0);
   model->transform.move(translation);
   model->transform.set_rotation(rotation);
